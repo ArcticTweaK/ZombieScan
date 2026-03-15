@@ -60,12 +60,11 @@ program
     .action(async (targetPath, options) => {
     const scanOptions = {
         path: path.resolve(targetPath),
-        dryRun: options.dryRun || (!options.prune), // default to dry-run if no flag given
+        dryRun: options.dryRun || (!options.prune),
         prune: options.prune,
         minConfidence: parseInt(options.minConfidence, 10),
         verbose: options.verbose,
     };
-    // Validate the path exists
     if (!fs.existsSync(scanOptions.path)) {
         console.error(chalk_1.default.red(`\n  ✗ Path not found: ${scanOptions.path}\n`));
         process.exit(1);
@@ -166,7 +165,6 @@ program
             text: chalk_1.default.gray("Pruning zombie code..."),
             color: "red",
         }).start();
-        // Group zombies by file
         const zombiesByFile = new Map();
         for (const z of allZombies) {
             if (!zombiesByFile.has(z.filePath)) {
@@ -178,7 +176,6 @@ program
             let content = (0, crawler_1.readFileContent)(filePath);
             if (!content)
                 continue;
-            // Process zombies one at a time (most impactful first)
             const sorted = [...zombies].sort((a, b) => b.confidence - a.confidence);
             pruneSpinner.text = chalk_1.default.gray(`  Pruning ${path.relative(process.cwd(), filePath)}...`);
             content = await (0, scanService_1.generatePrunedCode)(content, sorted);

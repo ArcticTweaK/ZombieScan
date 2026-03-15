@@ -37,13 +37,12 @@ program
   .action(async (targetPath: string, options) => {
     const scanOptions: ScanOptions = {
       path: path.resolve(targetPath),
-      dryRun: options.dryRun || (!options.prune), // default to dry-run if no flag given
+      dryRun: options.dryRun || (!options.prune),
       prune: options.prune,
       minConfidence: parseInt(options.minConfidence, 10),
       verbose: options.verbose,
     };
 
-    // Validate the path exists
     if (!fs.existsSync(scanOptions.path)) {
       console.error(chalk.red(`\n  ✗ Path not found: ${scanOptions.path}\n`));
       process.exit(1);
@@ -183,7 +182,6 @@ program
         color: "red",
       }).start();
 
-      // Group zombies by file
       const zombiesByFile = new Map<string, ZombieResult[]>();
       for (const z of allZombies) {
         if (!zombiesByFile.has(z.filePath)) {
@@ -196,7 +194,6 @@ program
         let content = readFileContent(filePath);
         if (!content) continue;
 
-        // Process zombies one at a time (most impactful first)
         const sorted = [...zombies].sort((a, b) => b.confidence - a.confidence);
 
         pruneSpinner.text = chalk.gray(

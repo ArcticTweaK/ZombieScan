@@ -1,10 +1,10 @@
 import { CodeChunk, ZombieResult, ZombieType } from "./types";
- 
+
 const OLLAMA_URL = "http://localhost:11434/api/chat";
 const MODEL = "qwen3:8b";
- 
+
 const SYSTEM_PROMPT = `You are a Cynical Senior Architect with 20+ years of experience. Your singular obsession is ruthlessly minimizing codebases. You have zero tolerance for dead weight.
- 
+
 Zombie Code categories:
 - Manual Polyfill: Reimplementing something now native to the language/runtime
 - Legacy Debugger: console.log, print(), debug statements left in production code
@@ -14,19 +14,21 @@ Zombie Code categories:
 - Obsolete Workaround: Browser/env workarounds for bugs that no longer exist
 - Vestigial Import: Imports of modules not actually used in the code block
 - Zombie Comment Block: Large blocks of commented-out code
- 
+
 Respond ONLY with raw JSON. No markdown, no explanation, no think blocks.
 If zombie: {"isZombie":true,"zombieType":"<category>","confidence":<1-10>,"cure":"<one sentence>"}
 If clean: {"isZombie":false}`;
- 
+
+const PRUNE_SYSTEM = `You are a precise code surgeon. Return ONLY the complete cleaned file content. No JSON. No markdown fences. No explanations. Just raw source code.`;
+
 interface ZombieAnalysis {
   isZombie: boolean;
   zombieType?: ZombieType;
   confidence?: number;
   cure?: string;
 }
- 
-async function callOllama(prompt: string): Promise<string> {
+
+async function callOllama(systemPrompt: string, userPrompt: string): Promise<string> {
   if (process.env.ZOMBIE_DEBUG) {
     console.error("\n[debug] calling ollama:", MODEL);
   }
@@ -38,8 +40,8 @@ async function callOllama(prompt: string): Promise<string> {
       stream: false,
       options: { temperature: 0.1, num_predict: 1024 },
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
@@ -55,11 +57,11 @@ async function callOllama(prompt: string): Promise<string> {
   }
   return data.message.content;
 }
- 
+
 export async function analyzeChunk(chunk: CodeChunk): Promise<ZombieResult | null> {
-  const prompt = `Analyze this code from \`${chunk.filePath}\`:\n\`\`\`\n${chunk.code}\n\`\`\`\nIs this Zombie Code? JSON only.`;
+  const userPrompt = `Analyze this code from \`${chunk.filePath}\`:\n\`\`\`\n${chunk.code}\n\`\`\`\nIs this Zombie Code? JSON only.`;
   try {
-    const rawText = await callOllama(prompt);
+    const rawText = await callOllama(SYSTEM_PROMPT, userPrompt);
     const stripped = rawText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     const jsonMatch = stripped.match(/\{[\s\S]*?\}/s);
     if (!jsonMatch) return null;
@@ -82,14 +84,16 @@ export async function analyzeChunk(chunk: CodeChunk): Promise<ZombieResult | nul
     return null;
   }
 }
- 
+
 export async function generatePrunedCode(
   originalCode: string,
-  zombies: ZombieResult[]  // now accepts array
+  zombies: ZombieResult[]
 ): Promise<string> {
   const zombieList = zombies
     .map((z, i) => `${i + 1}. Lines ${z.lineStart}-${z.lineEnd} | ${z.zombieType} | Fix: ${z.cure}`)
     .join("\n");
+
+  const userPrompt = `Remove these zombie code sections from the file and return the complete cleaned result:\n\n${zombieList}\n\nFull file:\n\`\`\`\n${originalCode}\n\`\`\`\n\nReturn only the cleaned file:`;
 
   const response = await fetch(OLLAMA_URL, {
     method: "POST",
@@ -99,14 +103,8 @@ export async function generatePrunedCode(
       stream: false,
       options: { temperature: 0.1, num_predict: 4096 },
       messages: [
-        {
-          role: "system",
-          content: "You are a precise code surgeon. Return ONLY the complete cleaned file content. No JSON. No markdown fences. No explanations. Just raw source code.",
-        },
-        {
-          role: "user",
-          content: `Remove these zombie code sections from the file and return the complete cleaned result:\n\n${zombieList}\n\nFull file:\n\`\`\`\n${originalCode}\n\`\`\`\n\nReturn only the cleaned file:`,
-        },
+        { role: "system", content: PRUNE_SYSTEM },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
