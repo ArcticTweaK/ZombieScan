@@ -55,7 +55,7 @@ The AI model acts as a **Cynical Senior Architect** — ruthlessly evaluating wh
 
 ```bash
 git clone https://github.com/ArcticTweaK/ZombieScan
-cd zombie-scan
+cd ZombieScan
 npm install
 npm run build
 ```
